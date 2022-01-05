@@ -1,30 +1,27 @@
-from multiprocessing import Process, Queue
-from multiprocessing.process import current_process
-import os
-import sys
+import sysv_ipc
+import threading
+from multiprocessing import shared_memory
+import time
 
-game_is_finished = False
+print("Launching game process...")
+shm_a = shared_memory.SharedMemory(create=True, size=5)
 
-def player(messageQueue, pid):
-    current_process().name = "Player-" + str(pid)
-    print("PID = " + str(pid) + " and name = " + current_process().name)
-
-if __name__ == '__main__':
-    current_process().name = "Game"
-    if len(sys.argv) != 2:
-        print("Incorrect amount of arguments")
-        sys.exit(2)
-    number = sys.argv[1]
-    try:
-        number = int(number)
-    except ValueError:
-        print("Incorrect number of players.")
-        sys.exit(2)
-    messageQueue = Queue()
-    processes = []
-    for i in range(number):
-        p = Process(target=player, args=(messageQueue,i+1))
-        processes.append(p)
-        p.start()
-    #while not game_is_finished:
-        # things
+def readMq(mq):
+    while True:
+        print("Waiting for msg")
+        message, t = mq.receive(True, 1)
+        value = message.decode()
+        print("Received "+value)
+        value = value.split(" ")
+        if value[0] == "hello":
+            print("Received hello from "+value[1])
+            return_message = f"{shm_a.name} velo,velo,voiture".encode()
+            mq.send(return_message)
+            time.sleep(0.01)
+for i in range(1,6):
+    key = 128+i
+    messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
+    print(f"Message Queue {key} created")
+    mqThread = threading.Thread(target=readMq, args = (messageQueue,))
+    mqThread.start()
+    print("Thread created")
