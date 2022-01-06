@@ -29,7 +29,7 @@ mq.send(str(msg).encode())
 print("Message '"+msg+"' sended")
 
 print("Waiting for my cards")
-message, t = mq.receive(True, 1)
+message, t = mq.receive()
 value = message.decode()
 print("Received "+value)
 value = value.split(" ")

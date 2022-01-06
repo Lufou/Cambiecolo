@@ -16,8 +16,7 @@ def readMq(mq):
         if value[0] == "hello":
             print("Received hello from "+value[1])
             return_message = f"{shm_a.name} velo,velo,voiture".encode()
-            mq.send(return_message)
-            time.sleep(0.01)
+            mq.send(return_message, True, 0)
 for i in range(1,6):
     key = 128+i
     messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
