@@ -6,6 +6,7 @@ import random
 import signal
 import os
 import time
+from ilock import ILock
 
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5)
@@ -14,6 +15,7 @@ playersNumber = 0
 cardCounter = {}
 messageQueues = []
 mqThread = ""
+lock = ILock('lock-cambiecolo')
 
 def chooseRandomCards():
     cartes = ""

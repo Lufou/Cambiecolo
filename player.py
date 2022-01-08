@@ -4,6 +4,7 @@ import sys
 import os
 from multiprocessing import shared_memory
 import time
+from ilock import ILock
 
 from stoppable_thread import StoppableThread
 
@@ -11,8 +12,9 @@ myCards = []
 pid = -1
 messageQueue = ""
 sharedMemory = ""
-mqThread = ""
+threads = []
 gameIsReady = False
+lock = ILock('lock-cambiecolo')
 
 def readMq(mq):
     global gameIsReady
@@ -38,9 +40,10 @@ def send(msg):
     messageQueue.send(msg, True, 2)
 
 def terminate():
-    global mqThread
-    print("Stopping mqReading thread")
-    mqThread.terminate() # Terminate the thread readMq which read the messageQueue as we're going to destroy the mq
+    global threads
+    print("Stopping threads")
+    for th in threads: # Terminate all threads
+        th.terminate()
     print("Telling the server i want to leave...")
     send("goodbye") # Tells the server i want to leave
     time.sleep(1)
@@ -56,7 +59,7 @@ def initPlayer():
     global pid
     global messageQueue
     global sharedMemory
-    global mqThread
+    global threads
     try:
         pid = int(sys.argv[1])
     except ValueError:
@@ -87,21 +90,28 @@ def initPlayer():
     print("Connected to shared mem")
     mqThread = StoppableThread(target=readMq, args = (messageQueue,))
     mqThread.start()
+    threads.append(mqThread)
     print("Thread started")
     signal.signal(signal.SIGINT, keyboardInterruptHandler)
+
+def refresh():
+    global lock
+    with lock:
+        pass
 
 def faireOffre():
     pass
 
 def game():
+    global threads
+    refreshOffres = StoppableThread(target=refresh)
+    refreshOffres.start()
+    threads.append(refreshOffres)
     while gameIsReady:
         print("Que voulez-vous faire ?")
         action = input()
-        match action:
-            case 'faireOffre':
-                faireOffre()
-            case _:
-                pass
+        if action == "faireOffre":
+            faireOffre()
 
 print("Starting player process")
 initPlayer()
@@ -111,5 +121,6 @@ while not gameIsReady:
 print("Game is ready to start!")
 nonBlockingInput = StoppableThread(target=game)
 nonBlockingInput.start()
+threads.append(nonBlockingInput)
 #while gameIsReady:
     
