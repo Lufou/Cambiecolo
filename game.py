@@ -9,6 +9,7 @@ import time
 
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5)
+playersConnected = 0
 playersNumber = 0
 cardCounter = {}
 messageQueues = []
@@ -28,6 +29,7 @@ def chooseRandomCards():
     return cartes
         
 def readMq(mq):
+    global playersConnected
     while True:
         print("Waiting for msg")
         message, t = mq.receive(True, 2)
@@ -38,12 +40,29 @@ def readMq(mq):
             print("Received hello from "+value[1])
             return_message = f"{shm_a.name} {chooseRandomCards()}".encode()
             mq.send(return_message, True, 1)
+            playersConnected += 1
+
+        if value[0] == "goodbye":
+            print("One player decide to leave, terminating the game")
+            terminate()
+
+def broadcast(msg):
+    print("Broadcasting to all clients : " + msg)
+    msg = msg.encode()
+    for mq in messageQueues:
+        mq.send(msg, True, 1)
+
+def sendToPlayer(pid, msg):
+    print(f"Sending to Player {pid} : {msg}")
+    pid -= 1
+    msg = msg.encode()
+    messageQueues[pid].send(msg, True, 1)
+
 def terminate():
     print("Stopping mqReading thread")
     mqThread.terminate() # Terminate the thread readMq which read the messageQueue as we're going to destroy the mq
     print("Broadcasting termination to all clients")
-    for mq in messageQueues:
-        mq.send("terminate".encode(), True, 1) # Broadcast to all connected clients we are going to close the connection
+    broadcast("terminate") # Broadcast to all connected clients we are going to close the connection
     time.sleep(1)
     for mq in messageQueues:
         mq.remove()
@@ -54,8 +73,10 @@ def terminate():
     print("Destroyed SharedMemory")
     print("Closing...")
     os._exit(0)
+
 def keyboardInterruptHandler(signal, frame):
    terminate()
+   
 def initGame():
     global playersNumber
     global mqThread
@@ -81,3 +102,8 @@ def initGame():
 
 print("Launching game process...")
 initGame()
+while playersConnected != playersNumber:
+    pass
+
+print("All players are ready, starting the game...")
+broadcast("ready")
