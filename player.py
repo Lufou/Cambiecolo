@@ -4,7 +4,7 @@ import sys
 import os
 from multiprocessing import shared_memory
 import time
-from ilock import ILock
+#from ilock import ILock
 
 from stoppable_thread import StoppableThread
 
@@ -14,10 +14,13 @@ messageQueue = ""
 sharedMemory = ""
 threads = []
 gameIsReady = False
-lock = ILock('lock-cambiecolo')
+#lock = ILock('lock-cambiecolo')
+myOffer = ()
+canReadOrWriteMemory = True
 
 def readMq(mq):
     global gameIsReady
+    global canReadOrWriteMemory
     while True:
         try:
             message, t = mq.receive(True, 1)
@@ -28,7 +31,11 @@ def readMq(mq):
                 os._exit(0)
             if value == "ready":
                 gameIsReady = True
-            print("Game is talking to me")
+            value = value.split(" ")
+            if value[0] == "busyMem" and value[1] != pid:
+                canReadOrWriteMemory = False
+            if value[0] == "memReady":
+                canReadOrWriteMemory = True
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
             sharedMemory.close()
@@ -95,12 +102,21 @@ def initPlayer():
     signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 def refresh():
-    global lock
-    with lock:
-        pass
+    #global lock
+    global canReadOrWriteMemory
+    while True:
+        time.sleep(2000)
+        if canReadOrWriteMemory:
+            sharedMemory
+    #with lock:
+        #pass
 
 def faireOffre():
-    pass
+    global myOffer
+    print("Ecrivez <carte> <nombre>")
+    choix = input()
+    choix = choix.split(" ")
+    
 
 def game():
     global threads
