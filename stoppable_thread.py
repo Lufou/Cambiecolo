@@ -15,7 +15,7 @@ def _async_raise(tid, exctype):
         ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
         raise SystemError("PyThreadState_SetAsyncExc failed")
 
-class StoppableThread(threading.Thread):
+class StoppableThread(threading.Thread): #classe permettant de créer des threads stoppables
     def _get_my_tid(self):
         if not self.is_alive():
             raise threading.ThreadError("the thread is not active")
@@ -38,4 +38,4 @@ class StoppableThread(threading.Thread):
     def terminate(self):
         """raises SystemExit in the context of the given thread, which should 
         cause the thread to exit silently (unless caught)"""
-        self.raise_exc(SystemExit)
+        self.raise_exc(SystemExit) #permet de fermer le thread sans générer d'erreur

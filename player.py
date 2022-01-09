@@ -8,11 +8,11 @@ import time
 
 from stoppable_thread import StoppableThread
 
-myCards = []
+myCards = [] #declare le jeu du player
 pid = -1
-messageQueue = ""
-sharedMemory = ""
-threads = []
+messageQueue = "" #initialisation de la messageQueue
+sharedMemory = "" #initialisation de la shared memory
+threads = [] #initialise un tableau de threads
 gameIsReady = False
 #lock = ILock('lock-cambiecolo')
 myOffer = ()
