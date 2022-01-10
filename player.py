@@ -116,6 +116,15 @@ def faireOffre():
     print("Ecrivez <carte> <nombre>")
     choix = input()
     choix = choix.split(" ")
+
+def AccepterOffre(pid):
+    if not myOffer: #teste si le tuple myOffer est vide ou non
+        print (" Veuillez formuler une offre : ")
+        faireOffre()
+    else:
+        print("Vous avez accepté l'offre du player "+pid)
+        
+    
     
 
 def game():
