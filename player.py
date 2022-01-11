@@ -36,6 +36,9 @@ def readMq(mq):
                 canReadOrWriteMemory = False
             if value[0] == "memReady":
                 canReadOrWriteMemory = True
+            if value[0] == "okToWrite":
+                sharedMemory.buf[pid-1] = myOffer[1].to_bytes()
+                send("finishedWriting")
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
             sharedMemory.close()
@@ -105,17 +108,42 @@ def refresh():
     #global lock
     global canReadOrWriteMemory
     while True:
-        time.sleep(2000)
+        time.sleep(3000)
         if canReadOrWriteMemory:
-            sharedMemory
+            print("\n\n\n\nOffres courantes :")
+            for i in range(0,5):
+                print(f"- Player {i+1} : {sharedMemory.buf[i].decode()} cards")
+
     #with lock:
         #pass
 
 def faireOffre():
     global myOffer
-    print("Ecrivez <carte> <nombre>")
-    choix = input()
-    choix = choix.split(" ")
+    print("Ecrivez <carte> <nombre> ou tapez cancel pour annuler")
+    carte = ""
+    nombre = 0
+    while True:
+        choix = input()
+        choix = choix.split(" ")
+        if len(choix) == 1 and choix[0] == "annuler":
+            return
+        if len(choix) != 2:
+            print("Vous n'avez pas spécifier le bon nombre d'argument : <carte> <nombre>")
+        else:
+            try:
+                carte = choix[0]
+                nombre = int(choix[1])
+                if myCards.count(carte) < nombre:
+                    print("Vous ne pouvez pas proposer des cartes que vous n'avez pas.")
+                else:
+                    break
+            except ValueError:
+                print("Vous n'avez pas entré le bon nombre")
+    while not canReadOrWriteMemory:
+        pass
+    send("shm_write "+str(pid))
+    myOffer = (carte, nombre)
+
 
 def AccepterOffre(pid):
     if not myOffer: #teste si le tuple myOffer est vide ou non

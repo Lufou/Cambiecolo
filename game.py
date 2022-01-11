@@ -15,7 +15,8 @@ playersNumber = 0 #initialisation du nb de joueurs
 cardCounter = {} #initialisation du nb de cartes d'un joueur
 messageQueues = [] #initialisation de la messageQueue
 mqThread = ""
-lock = ILock('lock-cambiecolo')
+memBusy = False
+#lock = ILock('lock-cambiecolo')
 
 def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
     cartes = "" #liste des cartes sous forme de string
@@ -48,12 +49,34 @@ def readMq(mq):
         if value[0] == "goodbye":
             print("One player decide to leave, terminating the game")
             terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
+        
+        if value[0] == "shm_write":
+            while memBusy:
+                pass
+            asking_pid = int(value[1])
+            broadcast("busyMem")
+            memBusy = True
+            time.sleep(0.2)
+            sendToPlayer(asking_pid, "okToWrite")
 
-def broadcast(msg):
-    print("Broadcasting to all clients : " + msg)
-    msg = msg.encode()
-    for mq in messageQueues:
-        mq.send(msg, True, 1)
+        if value[0] == "finishedWriting":
+            memBusy = False
+            broadcast("memReady")
+
+def broadcast(msg, exclude=-1):
+    if exclude == -1:
+        print("Broadcasting to all clients : " + msg)
+        msg = msg.encode()
+        for mq in messageQueues:
+            mq.send(msg, True, 1)
+    else:
+        print(f"Broadcasting to all clients (excepted {exclude}) : {msg}")
+        exclude -= 1
+        msg = msg.encode()
+        for i in range(0,5):
+            if i == exclude:
+                continue
+            messageQueues[i].send(msg, True, 1)
 
 def sendToPlayer(pid, msg): #envoie un msg à un player
     print(f"Sending to Player {pid} : {msg}") #print le pid du joueur auquel on envoie le msg, et print le msg
