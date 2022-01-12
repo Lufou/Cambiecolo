@@ -136,11 +136,12 @@ def refresh():
                     print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
                 string = "\n\n\nMon jeu : "
                 for card in myCards:
-                    string += card+","
+                    string += card+" "
                 print(string)
 
 def faireOffre():
     global myOffer
+    global lock
     print("Ecrivez <carte> <nombre> ou tapez cancel pour annuler")
     carte = ""
     nombre = 0
