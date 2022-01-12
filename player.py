@@ -176,13 +176,13 @@ def accepterOffre():
         print (" Veuillez formuler une offre : ")
         faireOffre()
 
-    while myOffer[1] != sharedMemory.buf[target_pid-1]:
+    '''while myOffer[1] != sharedMemory.buf[target_pid-1]:
         print("Offres non compatibles, veuillez reformuler une offre : ")
         if faireOffre() == False:
-            return
+            return'''
     print("offres compatibles :) ")
-    send("trade"+myOffer[1]+" cards "+myOffer[0]+" with "+str(target_pid))
-    print("Vous avez accepté l'offre du player "+target_pid)
+    send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
+    print("Vous avez accepté l'offre du player "+str(target_pid))
     
     
 
