@@ -1,4 +1,5 @@
 import signal
+from threading import current_thread
 import sysv_ipc
 import sys
 import os
@@ -29,9 +30,7 @@ def readMq():
             value = message.decode()
             if value == "terminate":
                 print("Server decided to close the connection.")
-                gameIsReady = False
-                sharedMemory.close()
-                os._exit(0)
+                terminate(False)
             elif value == "ready":
                 gameIsReady = True
             value = value.split(" ")
@@ -41,9 +40,7 @@ def readMq():
             value = message.decode()
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
-            gameIsReady = False
-            sharedMemory.close()
-            os._exit(1)
+            terminate(False)
         except sysv_ipc.BusyError:
             pass
 
@@ -53,7 +50,7 @@ def send(msg):
     msg = msg.encode()
     serverMessageQueue.send(msg, True, 2)
 
-def terminate():
+def terminate(from_client=True):
     global threads
     global gameIsReady
     global clientsMsgQueue
@@ -63,9 +60,12 @@ def terminate():
         clientsMsgQueue.remove()
     print("Stopping threads")
     for th in threads: # Terminate all threads
+        if th.native_id == current_thread().native_id:
+            continue
         th.terminate()
-    print("Telling the server i want to leave...")
-    send("goodbye") # Tells the server i want to leave
+    if from_client:
+        print("Telling the server i want to leave...")
+        send("goodbye") # Tells the server i want to leave
     time.sleep(1)
     sharedMemory.close()
     print("SharedMemory closed")
@@ -128,7 +128,7 @@ def refresh():
     while True:
         time.sleep(5)
         with lock:
-            if len(sharedMemory.buf) > 0:
+            if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]:
                 print("\n\n\n\nOffres courantes :")
                 for i in range(0,5):
                     if not sharedMemory.buf[i]:
@@ -136,7 +136,8 @@ def refresh():
                     print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
                 string = "\n\n\nMon jeu : "
                 for card in myCards:
-                    string += card+" "
+                    string += card+","
+                string = string[:len(string)-1]
                 print(string)
 
 def faireOffre():
@@ -171,16 +172,28 @@ def faireOffre():
 
 def accepterOffre():
     global myOffer #utilise la variable globale myOffer
-    global sharedMemory 
-    target_pid = input("pid = ")
+    global sharedMemory
+    global lock
+    target_pid = ""
+    while True:
+        target_pid = input("pid = ")
+        try:
+            target_pid = int(target_pid)
+            break
+        except ValueError:
+            print("Incorrect ID")
+    #TO-DO : Check if the ID specified really has a pending offer
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
 
-    '''while myOffer[1] != sharedMemory.buf[target_pid-1]:
+    target_nombre = 0
+    with lock:
+        target_nombre = sharedMemory.buf[target_pid-1]
+    while myOffer[1] != target_nombre:
         print("Offres non compatibles, veuillez reformuler une offre : ")
         if faireOffre() == False:
-            return'''
+            return
     print("offres compatibles :) ")
     send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
     print("Vous avez accepté l'offre du player "+str(target_pid))
@@ -188,10 +201,6 @@ def accepterOffre():
     
 
 def game():
-    global threads
-    refreshOffres = StoppableThread(target=refresh)
-    refreshOffres.start()
-    threads.append(refreshOffres)
     while gameIsReady:
         print("Que voulez-vous faire ? ")
         action = input()
@@ -209,3 +218,6 @@ print("Game is ready to start!")
 nonBlockingInput = StoppableThread(target=game)
 nonBlockingInput.start()
 threads.append(nonBlockingInput)
+refreshOffres = StoppableThread(target=refresh)
+refreshOffres.start()
+threads.append(refreshOffres)
