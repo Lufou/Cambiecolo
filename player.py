@@ -128,7 +128,7 @@ def faireOffre():
         if len(choix) == 1 and choix[0] == "annuler":
             return
         if len(choix) != 2:
-            print("Vous n'avez pas spécifier le bon nombre d'argument : <carte> <nombre>")
+            print("Vous n'avez pas spécifié le bon nombre d'argument : <carte> <nombre>")
         else:
             try:
                 carte = choix[0]
@@ -145,12 +145,19 @@ def faireOffre():
     myOffer = (carte, nombre)
 
 
-def AccepterOffre(pid):
+def accepterOffre():
+    global myOffer #utilise la variable globale myOffer
+    pid1 = input("pid = ")
+    print("Vous avez accepté l'offre du joueur "+pid1)
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
+        myOffer = myOffer.split(" ")
+        send("trade cards "+myOffer+" with "+str(pid1))
     else:
-        print("Vous avez accepté l'offre du player "+pid)
+        print("Vous avez accepté l'offre du player "+pid1)
+        myOffer = myOffer.split(" ")
+        send("trade with "+myOffer+" with "+str(pid1))
         
     
     
@@ -165,6 +172,8 @@ def game():
         action = input()
         if action == "faireOffre":
             faireOffre()
+        elif action == "accepterOffre":
+            accepterOffre()
 
 print("Starting player process")
 initPlayer()

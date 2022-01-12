@@ -6,7 +6,7 @@ import random
 import signal
 import os
 import time
-from ilock import ILock
+#from ilock import ILock
 
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5) #creation de la shared memory
@@ -28,7 +28,7 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
             k = random.randint(0,playersNumber-1)
         cartes += typeTransport[k] + "," #ajout de la carte à la liste de cartes
         cardCounter[typeTransport[k]] += 1 #incrémente de 1 le nb de cartes du joueur
-    cartes.removesuffix(",")
+    #cartes.removesuffix(",")
     return cartes
         
 def readMq(mq):
