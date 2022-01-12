@@ -138,7 +138,7 @@ def faireOffre():
         choix = input()
         choix = choix.split(" ")
         if len(choix) == 1 and choix[0] == "annuler":
-            return
+            return False
         if len(choix) != 2:
             print("Vous n'avez pas spécifié le bon nombre d'argument : <carte> <nombre>")
         else:
@@ -157,22 +157,24 @@ def faireOffre():
         pass
     send("shm_write "+str(pid))
     myOffer = (carte, nombre)
+    return True
 
 
 def accepterOffre():
     global myOffer #utilise la variable globale myOffer
-    pid1 = input("pid = ")
-    print("Vous avez accepté l'offre du joueur "+pid1)
+    global sharedMemory 
+    target_pid = input("pid = ")
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
-        myOffer = myOffer.split(" ")
-        send("trade cards "+myOffer+" with "+str(pid1))
-    else:
-        print("Vous avez accepté l'offre du player "+pid1)
-        myOffer = myOffer.split(" ")
-        send("trade with "+myOffer+" with "+str(pid1))
-        
+
+    while myOffer[1] != sharedMemory.buf[target_pid-1]:
+        print("Offres non compatibles, veuillez reformuler une offre : ")
+        if faireOffre() == False:
+            return
+    print("offres compatibles :) ")
+    send("trade"+myOffer[1]+" cards "+myOffer[0]+" with "+str(target_pid))
+    print("Vous avez accepté l'offre du player "+target_pid)
     
     
 
