@@ -142,10 +142,10 @@ def faireOffre():
     while True:
         choix = input()
         choix = choix.split(" ")
-        if len(choix) == 1 and choix[0] == "cancel":
-            return
+        if len(choix) == 1 and choix[0] == "annuler":
+            return False
         if len(choix) != 2:
-            print("Vous n'avez pas spécifier le bon nombre d'argument : <carte> <nombre>")
+            print("Vous n'avez pas spécifié le bon nombre d'argument : <carte> <nombre>")
         else:
             try:
                 carte = choix[0]
@@ -161,14 +161,23 @@ def faireOffre():
     myOffer = (carte, nombre)
     with lock:
         sharedMemory.buf[pid-1] = myOffer[1]
+    return True
 
-def AccepterOffre(pid):
+def accepterOffre():
+    global myOffer #utilise la variable globale myOffer
+    global sharedMemory 
+    target_pid = input("pid = ")
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
-    else:
-        print("Vous avez accepté l'offre du player "+pid)
-        
+
+    while myOffer[1] != sharedMemory.buf[target_pid-1]:
+        print("Offres non compatibles, veuillez reformuler une offre : ")
+        if faireOffre() == False:
+            return
+    print("offres compatibles :) ")
+    send("trade"+myOffer[1]+" cards "+myOffer[0]+" with "+str(target_pid))
+    print("Vous avez accepté l'offre du player "+target_pid)
     
     
 
@@ -181,7 +190,9 @@ def game():
         print("Que voulez-vous faire ? ")
         action = input()
         if action == "faireOffre":
-           faireOffre()
+            faireOffre()
+        elif action == "accepterOffre":
+            accepterOffre()
 
 print("Starting player process")
 initPlayer()

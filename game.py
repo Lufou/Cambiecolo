@@ -25,7 +25,9 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
             k = random.randint(0,playersNumber-1)
         cartes += typeTransport[k] + "," #ajout de la carte à la liste de cartes
         cardCounter[typeTransport[k]] += 1 #incrémente de 1 le nb de cartes du joueur
+
     #cartes = cartes.removesuffix(",")
+
     return cartes
         
 def readMq(mq):
@@ -46,7 +48,7 @@ def readMq(mq):
         if value[0] == "goodbye":
             print("One player decide to leave, terminating the game")
             terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
-            
+
 def broadcast(msg, exclude=-1):
     if exclude == -1:
         print("Broadcasting to all clients : " + msg)
