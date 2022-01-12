@@ -4,26 +4,28 @@ import sys
 import os
 from multiprocessing import shared_memory
 import time
-#from ilock import ILock
+from ilock import ILock
 
 from stoppable_thread import StoppableThread
 
 myCards = [] #declare le jeu du player
 pid = -1
-messageQueue = "" #initialisation de la messageQueue
+serverMessageQueue = "" #initialisation de la messageQueue
 sharedMemory = "" #initialisation de la shared memory
 threads = [] #initialise un tableau de threads
 gameIsReady = False
-#lock = ILock('lock-cambiecolo')
+lock = ILock('lock-cambiecolo')
 myOffer = ()
-canReadOrWriteMemory = True
+clientsMsgQueue = ""
 
-def readMq(mq):
+def readMq():
     global gameIsReady
-    global canReadOrWriteMemory
+    global serverMessageQueue
+    global clientsMsgQueue
     while True:
         try:
-            message, t = mq.receive(True, 1)
+            # client <=> server message queue
+            message, t = serverMessageQueue.receive(False, 1)
             value = message.decode()
             if value == "terminate":
                 print("Server decided to close the connection.")
@@ -33,28 +35,32 @@ def readMq(mq):
             elif value == "ready":
                 gameIsReady = True
             value = value.split(" ")
-            if value[0] == "busyMem":
-                canReadOrWriteMemory = False
-            elif value[0] == "memReady":
-                canReadOrWriteMemory = True
-            elif value[0] == "okToWrite":
-                sharedMemory.buf[pid-1] = myOffer[1]
-                send("finishedWriting")
+
+            # clients <=> clients message queue
+            message, t = clientsMsgQueue.receive(False, pid)
+            value = message.decode()
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
             gameIsReady = False
             sharedMemory.close()
             os._exit(1)
+        except sysv_ipc.BusyError:
+            pass
 
 def send(msg):
+    global serverMessageQueue
     print("Sending to server : " + msg)
     msg = msg.encode()
-    messageQueue.send(msg, True, 2)
+    serverMessageQueue.send(msg, True, 2)
 
 def terminate():
     global threads
     global gameIsReady
+    global clientsMsgQueue
     gameIsReady = False
+    if pid == 1:
+        print("Closing Clients Msg Queue")
+        clientsMsgQueue.remove()
     print("Stopping threads")
     for th in threads: # Terminate all threads
         th.terminate()
@@ -71,9 +77,10 @@ def keyboardInterruptHandler(signal, frame):
 
 def initPlayer():
     global pid
-    global messageQueue
+    global serverMessageQueue
     global sharedMemory
     global threads
+    global clientsMsgQueue
     if len(sys.argv) != 2:
         print("Syntax: python3 player.py <pid>")
         os._exit(1)
@@ -85,17 +92,21 @@ def initPlayer():
    
     mq_key = 128+pid
     try:
-        messageQueue = sysv_ipc.MessageQueue(mq_key)
+        serverMessageQueue = sysv_ipc.MessageQueue(mq_key)
     except sysv_ipc.ExistentialError:
         print("Game process do not accept your Player ID.")
         os._exit(1)
+    if (pid == 1):
+        clientsMsgQueue = sysv_ipc.MessageQueue(150, sysv_ipc.IPC_CREAT)
+    else:
+        clientsMsgQueue = sysv_ipc.MessageQueue(150)
     print("Connected to MessageQueue")
     msg = "hello "+str(pid)
     send(msg)
     print("Message '"+msg+"' sended")
 
     print("Waiting for my cards")
-    message, t = messageQueue.receive(True, 1)
+    message, t = serverMessageQueue.receive(True, 1)
     value = message.decode()
     print("Received "+value)
     value = value.split(" ")
@@ -105,29 +116,23 @@ def initPlayer():
     shm_key = value[0]
     sharedMemory = shared_memory.SharedMemory(shm_key)
     print("Connected to shared mem")
-    mqThread = StoppableThread(target=readMq, args = (messageQueue,))
+    mqThread = StoppableThread(target=readMq)
     mqThread.start()
     threads.append(mqThread)
     print("Thread started")
     signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 def refresh():
-    #global lock
-    global canReadOrWriteMemory
-    print("TEST1")
+    global lock
     while True:
-        time.sleep(3000)
-        print("TEST")
-        if canReadOrWriteMemory:
+        time.sleep(3)
+        with lock:
             if len(sharedMemory.buf) > 0:
                 print("\n\n\n\nOffres courantes :")
                 for i in range(0,5):
                     if not sharedMemory.buf[i]:
                         continue
                     print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
-
-    #with lock:
-        #pass
 
 def faireOffre():
     global myOffer
@@ -137,7 +142,7 @@ def faireOffre():
     while True:
         choix = input()
         choix = choix.split(" ")
-        if len(choix) == 1 and choix[0] == "annuler":
+        if len(choix) == 1 and choix[0] == "cancel":
             return
         if len(choix) != 2:
             print("Vous n'avez pas spécifier le bon nombre d'argument : <carte> <nombre>")
@@ -153,11 +158,9 @@ def faireOffre():
                     break
             except ValueError:
                 print("Vous n'avez pas entré le bon nombre")
-    while not canReadOrWriteMemory:
-        pass
-    send("shm_write "+str(pid))
     myOffer = (carte, nombre)
-
+    with lock:
+        sharedMemory.buf[pid-1] = myOffer[1]
 
 def AccepterOffre(pid):
     if not myOffer: #teste si le tuple myOffer est vide ou non
@@ -178,7 +181,7 @@ def game():
         print("Que voulez-vous faire ? ")
         action = input()
         if action == "faireOffre":
-            faireOffre()
+           faireOffre()
 
 print("Starting player process")
 initPlayer()
@@ -189,5 +192,3 @@ print("Game is ready to start!")
 nonBlockingInput = StoppableThread(target=game)
 nonBlockingInput.start()
 threads.append(nonBlockingInput)
-#while gameIsReady:
-    

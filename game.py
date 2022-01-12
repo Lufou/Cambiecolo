@@ -6,7 +6,6 @@ import random
 import signal
 import os
 import time
-from ilock import ILock
 
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5) #creation de la shared memory
@@ -15,8 +14,6 @@ playersNumber = 0 #initialisation du nb de joueurs
 cardCounter = {} #initialisation du nb de cartes d'un joueur
 messageQueues = [] #initialisation de la messageQueue
 mqThread = ""
-memBusy = False
-#lock = ILock('lock-cambiecolo')
 
 def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
     cartes = "" #liste des cartes sous forme de string
@@ -33,7 +30,6 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
         
 def readMq(mq):
     global playersConnected
-    global memBusy
     while True:
         print("Waiting for msg")
         message, t = mq.receive(True, 2) #le true bloque le code à cette ligne tant qu'il n'y a pas de msg sur la mq, le 2 correspond au type de msg que l'on ecoute
@@ -50,20 +46,7 @@ def readMq(mq):
         if value[0] == "goodbye":
             print("One player decide to leave, terminating the game")
             terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
-        
-        if value[0] == "shm_write":
-            while memBusy:
-                pass
-            asking_pid = int(value[1])
-            broadcast("busyMem")
-            memBusy = True
-            time.sleep(0.2)
-            sendToPlayer(asking_pid, "okToWrite")
-
-        if value[0] == "finishedWriting":
-            memBusy = False
-            broadcast("memReady")
-
+            
 def broadcast(msg, exclude=-1):
     if exclude == -1:
         print("Broadcasting to all clients : " + msg)
