@@ -27,20 +27,22 @@ def readMq(mq):
             value = message.decode()
             if value == "terminate":
                 print("Server decided to close the connection.")
+                gameIsReady = False
                 sharedMemory.close()
                 os._exit(0)
-            if value == "ready":
+            elif value == "ready":
                 gameIsReady = True
             value = value.split(" ")
-            if value[0] == "busyMem" and value[1] != pid:
+            if value[0] == "busyMem":
                 canReadOrWriteMemory = False
-            if value[0] == "memReady":
+            elif value[0] == "memReady":
                 canReadOrWriteMemory = True
-            if value[0] == "okToWrite":
-                sharedMemory.buf[pid-1] = myOffer[1].to_bytes()
+            elif value[0] == "okToWrite":
+                sharedMemory.buf[pid-1] = myOffer[1]
                 send("finishedWriting")
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
+            gameIsReady = False
             sharedMemory.close()
             os._exit(1)
 
@@ -51,6 +53,8 @@ def send(msg):
 
 def terminate():
     global threads
+    global gameIsReady
+    gameIsReady = False
     print("Stopping threads")
     for th in threads: # Terminate all threads
         th.terminate()
@@ -70,6 +74,9 @@ def initPlayer():
     global messageQueue
     global sharedMemory
     global threads
+    if len(sys.argv) != 2:
+        print("Syntax: python3 player.py <pid>")
+        os._exit(1)
     try:
         pid = int(sys.argv[1])
     except ValueError:
@@ -107,12 +114,17 @@ def initPlayer():
 def refresh():
     #global lock
     global canReadOrWriteMemory
+    print("TEST1")
     while True:
         time.sleep(3000)
+        print("TEST")
         if canReadOrWriteMemory:
-            print("\n\n\n\nOffres courantes :")
-            for i in range(0,5):
-                print(f"- Player {i+1} : {sharedMemory.buf[i].decode()} cards")
+            if len(sharedMemory.buf) > 0:
+                print("\n\n\n\nOffres courantes :")
+                for i in range(0,5):
+                    if not sharedMemory.buf[i]:
+                        continue
+                    print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
 
     #with lock:
         #pass
@@ -135,6 +147,8 @@ def faireOffre():
                 nombre = int(choix[1])
                 if myCards.count(carte) < nombre:
                     print("Vous ne pouvez pas proposer des cartes que vous n'avez pas.")
+                elif nombre > 3:
+                    print("Vous ne pouvez pas proposer plus de 3 cartes.")
                 else:
                     break
             except ValueError:
@@ -168,7 +182,7 @@ def game():
     refreshOffres.start()
     threads.append(refreshOffres)
     while gameIsReady:
-        print("Que voulez-vous faire ?")
+        print("Que voulez-vous faire ? ")
         action = input()
         if action == "faireOffre":
             faireOffre()

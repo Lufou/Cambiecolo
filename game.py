@@ -28,11 +28,14 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
             k = random.randint(0,playersNumber-1)
         cartes += typeTransport[k] + "," #ajout de la carte à la liste de cartes
         cardCounter[typeTransport[k]] += 1 #incrémente de 1 le nb de cartes du joueur
-    #cartes.removesuffix(",")
+
+    #cartes = cartes.removesuffix(",")
+
     return cartes
         
 def readMq(mq):
     global playersConnected
+    global memBusy
     while True:
         print("Waiting for msg")
         message, t = mq.receive(True, 2) #le true bloque le code à cette ligne tant qu'il n'y a pas de msg sur la mq, le 2 correspond au type de msg que l'on ecoute
