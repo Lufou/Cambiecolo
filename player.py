@@ -124,8 +124,9 @@ def initPlayer():
 
 def refresh():
     global lock
+    global myCards
     while True:
-        time.sleep(3)
+        time.sleep(5)
         with lock:
             if len(sharedMemory.buf) > 0:
                 print("\n\n\n\nOffres courantes :")
@@ -133,6 +134,10 @@ def refresh():
                     if not sharedMemory.buf[i]:
                         continue
                     print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
+                string = "\n\n\nMon jeu : "
+                for card in myCards:
+                    string += card+","
+                print(string)
 
 def faireOffre():
     global myOffer
