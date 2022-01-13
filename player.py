@@ -18,6 +18,7 @@ gameIsReady = False
 lock = ILock('lock-cambiecolo')
 myOffer = ()
 clientsMsgQueue = ""
+debug = False
 
 def readMq():
     global gameIsReady
@@ -46,7 +47,9 @@ def readMq():
 
 def send(msg):
     global serverMessageQueue
-    print("Sending to server : " + msg)
+    global debug
+    if debug:
+        print("Sending to server : " + msg)
     msg = msg.encode()
     serverMessageQueue.send(msg, True, 2)
 
@@ -81,6 +84,7 @@ def initPlayer():
     global sharedMemory
     global threads
     global clientsMsgQueue
+    global debug
     if len(sys.argv) != 2:
         print("Syntax: python3 player.py <pid>")
         os._exit(1)
@@ -100,26 +104,28 @@ def initPlayer():
         clientsMsgQueue = sysv_ipc.MessageQueue(150, sysv_ipc.IPC_CREAT)
     else:
         clientsMsgQueue = sysv_ipc.MessageQueue(150)
-    print("Connected to MessageQueue")
+    if debug:
+        print("Connected to MessageQueue")
     msg = "hello "+str(pid)
     send(msg)
-    print("Message '"+msg+"' sended")
-
-    print("Waiting for my cards")
+    if debug:
+        print("Message '"+msg+"' sended")
+        print("Waiting for my cards")
     message, t = serverMessageQueue.receive(True, 1)
     value = message.decode()
-    print("Received "+value)
+    if debug: print("Received "+value)
     value = value.split(" ")
     cards_string = value[1].split(",")
     for card in cards_string:
         myCards.append(card)
+    print("Mes cartes : "+value[1])
     shm_key = value[0]
     sharedMemory = shared_memory.SharedMemory(shm_key)
-    print("Connected to shared mem")
+    if debug: print("Connected to shared mem")
     mqThread = StoppableThread(target=readMq)
     mqThread.start()
     threads.append(mqThread)
-    print("Thread started")
+    if debug: print("Thread started")
     signal.signal(signal.SIGINT, keyboardInterruptHandler)
 
 def refresh():
@@ -174,15 +180,25 @@ def accepterOffre():
     global myOffer #utilise la variable globale myOffer
     global sharedMemory
     global lock
+    global pid
     target_pid = ""
     while True:
         target_pid = input("pid = ")
         try:
+            if (target_pid == "cancel"):
+                print("Opération annulée.")
+                return
             target_pid = int(target_pid)
-            break
+            if (target_pid != pid):
+                break
+            else:
+                print("Vous ne pouvez pas accepter votre propre offre.")
         except ValueError:
             print("Incorrect ID")
-    #TO-DO : Check if the ID specified really has a pending offer
+    with lock:
+        if sharedMemory.buf[target_pid-1] == 0:
+            print("Le joueur ciblé n'a pas fait d'offre, opération impossible.")
+            return
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
