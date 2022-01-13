@@ -1,6 +1,6 @@
 import sysv_ipc
-from stoppable_thread import StoppableThread
 from multiprocessing import shared_memory
+import threading
 import sys
 import random
 import signal
@@ -105,7 +105,7 @@ def initGame(): #methode qui initialise le jeu
         messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
-        mqThread = StoppableThread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
+        mqThread = threading.Thread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
         mqThread.start()
         print("Thread created")
     signal.signal(signal.SIGINT, keyboardInterruptHandler)

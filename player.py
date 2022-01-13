@@ -6,7 +6,6 @@ import os
 from multiprocessing import shared_memory
 import time
 from ilock import ILock
-
 from stoppable_thread import StoppableThread
 
 myCards = [] #declare le jeu du player
@@ -19,6 +18,7 @@ lock = ILock('lock-cambiecolo')
 myOffer = ()
 clientsMsgQueue = ""
 debug = False
+canRefresh = True
 
 def readMq():
     global gameIsReady
@@ -63,7 +63,7 @@ def terminate(from_client=True):
         clientsMsgQueue.remove()
     print("Stopping threads")
     for th in threads: # Terminate all threads
-        if th.native_id == current_thread().native_id:
+        if th.native_id == current_thread().native_id or not th.is_alive():
             continue
         th.terminate()
     if from_client:
@@ -131,29 +131,34 @@ def initPlayer():
 def refresh():
     global lock
     global myCards
+    global canRefresh
     while True:
         time.sleep(5)
-        with lock:
-            if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]:
-                print("\n\n\n\nOffres courantes :")
-                for i in range(0,5):
-                    if not sharedMemory.buf[i]:
-                        continue
-                    print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
-                string = "\n\n\nMon jeu : "
-                for card in myCards:
-                    string += card+","
-                string = string[:len(string)-1]
-                print(string)
+        if canRefresh:
+            with lock:
+                if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]:
+                    print("\n\n\n\nOffres courantes :")
+                    for i in range(0,5):
+                        if not sharedMemory.buf[i]:
+                            continue
+                        print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
+                    string = "\n\n\nMon jeu : "
+                    for card in myCards:
+                        string += card+","
+                    string = string[:len(string)-1]
+                    print(string)
 
 def faireOffre():
     global myOffer
     global lock
+    global canRefresh
     print("Ecrivez <carte> <nombre> ou tapez cancel pour annuler")
     carte = ""
     nombre = 0
     while True:
+        canRefresh = False
         choix = input()
+        canRefresh = True
         choix = choix.split(" ")
         if len(choix) == 1 and choix[0] == "annuler":
             return False
@@ -181,9 +186,12 @@ def accepterOffre():
     global sharedMemory
     global lock
     global pid
+    global canRefresh
     target_pid = ""
     while True:
+        canRefresh = False
         target_pid = input("pid = ")
+        canRefresh = True
         try:
             if (target_pid == "cancel"):
                 print("Opération annulée.")
@@ -214,9 +222,12 @@ def accepterOffre():
     send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
     print("Vous avez accepté l'offre du player "+str(target_pid))
     
+def trackKeyboard():
+    global canRefresh
     
 
 def game():
+    global canRefresh
     while gameIsReady:
         print("Que voulez-vous faire ? ")
         action = input()
@@ -232,8 +243,14 @@ while not gameIsReady:
     pass
 print("Game is ready to start!")
 nonBlockingInput = StoppableThread(target=game)
+nonBlockingInput.setName("Game")
 nonBlockingInput.start()
 threads.append(nonBlockingInput)
 refreshOffres = StoppableThread(target=refresh)
+refreshOffres.setName("Refresh")
 refreshOffres.start()
 threads.append(refreshOffres)
+keyboardTracking = StoppableThread(target=trackKeyboard)
+keyboardTracking.setName("TrackKeyboard")
+keyboardTracking.start()
+threads.append(keyboardTracking)
