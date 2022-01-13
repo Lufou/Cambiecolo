@@ -1,11 +1,11 @@
 import signal
+from threading import current_thread
 import sysv_ipc
 import sys
 import os
 from multiprocessing import shared_memory
 import time
 from ilock import ILock
-
 from stoppable_thread import StoppableThread
 
 myCards = [] #declare le jeu du player
@@ -17,6 +17,8 @@ gameIsReady = False
 lock = ILock('lock-cambiecolo')
 myOffer = ()
 clientsMsgQueue = ""
+debug = False
+canRefresh = True
 
 def readMq():
     global gameIsReady
@@ -29,9 +31,7 @@ def readMq():
             value = message.decode()
             if value == "terminate":
                 print("Server decided to close the connection.")
-                gameIsReady = False
-                sharedMemory.close()
-                os._exit(0)
+                terminate(False)
             elif value == "ready":
                 gameIsReady = True
             value = value.split(" ")
@@ -41,19 +41,19 @@ def readMq():
             value = message.decode()
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
-            gameIsReady = False
-            sharedMemory.close()
-            os._exit(1)
+            terminate(False)
         except sysv_ipc.BusyError:
             pass
 
 def send(msg):
     global serverMessageQueue
-    print("Sending to server : " + msg)
+    global debug
+    if debug:
+        print("Sending to server : " + msg)
     msg = msg.encode()
     serverMessageQueue.send(msg, True, 2)
 
-def terminate():
+def terminate(from_client=True):
     global threads
     global gameIsReady
     global clientsMsgQueue
@@ -63,9 +63,12 @@ def terminate():
         clientsMsgQueue.remove()
     print("Stopping threads")
     for th in threads: # Terminate all threads
+        if th.native_id == current_thread().native_id or not th.is_alive():
+            continue
         th.terminate()
-    print("Telling the server i want to leave...")
-    send("goodbye") # Tells the server i want to leave
+    if from_client:
+        print("Telling the server i want to leave...")
+        send("goodbye") # Tells the server i want to leave
     time.sleep(1)
     sharedMemory.close()
     print("SharedMemory closed")
@@ -76,7 +79,7 @@ def signalHandler(signal, frame):
     if signal == signal.SIGINT:
         terminate()
     elif signal == signal.SIGQUIT:
-        # à completer, le serv doit envoyer un signal à tous les autres clients
+       pass
 
 def initPlayer():
     global pid
@@ -84,6 +87,7 @@ def initPlayer():
     global sharedMemory
     global threads
     global clientsMsgQueue
+    global debug
     if len(sys.argv) != 2:
         print("Syntax: python3 player.py <pid>")
         os._exit(1)
@@ -103,52 +107,62 @@ def initPlayer():
         clientsMsgQueue = sysv_ipc.MessageQueue(150, sysv_ipc.IPC_CREAT)
     else:
         clientsMsgQueue = sysv_ipc.MessageQueue(150)
-    print("Connected to MessageQueue")
+    if debug:
+        print("Connected to MessageQueue")
     msg = "hello "+str(pid)
     send(msg)
-    print("Message '"+msg+"' sended")
-
-    print("Waiting for my cards")
+    if debug:
+        print("Message '"+msg+"' sended")
+        print("Waiting for my cards")
     message, t = serverMessageQueue.receive(True, 1)
     value = message.decode()
-    print("Received "+value)
+    if debug: print("Received "+value)
     value = value.split(" ")
     cards_string = value[1].split(",")
     for card in cards_string:
         myCards.append(card)
+    print("Mes cartes : "+value[1])
     shm_key = value[0]
     sharedMemory = shared_memory.SharedMemory(shm_key)
-    print("Connected to shared mem")
+    if debug: print("Connected to shared mem")
     mqThread = StoppableThread(target=readMq)
     mqThread.start()
     threads.append(mqThread)
-    print("Thread started")
+    if debug: print("Thread started")
     signal.signal(signal.SIGINT, signalHandler)
+    
 
 def refresh():
     global lock
     global myCards
+    global canRefresh
     while True:
         time.sleep(5)
-        with lock:
-            if len(sharedMemory.buf) > 0:
-                print("\n\n\n\nOffres courantes :")
-                for i in range(0,5):
-                    if not sharedMemory.buf[i]:
-                        continue
-                    print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
-                string = "\n\n\nMon jeu : "
-                for card in myCards:
-                    string += card+","
-                print(string)
+        if canRefresh:
+            with lock:
+                if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]:
+                    print("\n\n\n\nOffres courantes :")
+                    for i in range(0,5):
+                        if not sharedMemory.buf[i]:
+                            continue
+                        print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
+                    string = "\n\n\nMon jeu : "
+                    for card in myCards:
+                        string += card+","
+                    string = string[:len(string)-1]
+                    print(string)
 
 def faireOffre():
     global myOffer
+    global lock
+    global canRefresh
     print("Ecrivez <carte> <nombre> ou tapez cancel pour annuler")
     carte = ""
     nombre = 0
     while True:
+        canRefresh = False
         choix = input()
+        canRefresh = True
         choix = choix.split(" ")
         if len(choix) == 1 and choix[0] == "annuler":
             return False
@@ -174,15 +188,40 @@ def faireOffre():
 def accepterOffre():
     global myOffer #utilise la variable globale myOffer
     global sharedMemory
-    target_pid = input("pid = ")
+    global lock
+    global pid
+    global canRefresh
+    target_pid = ""
+    while True:
+        canRefresh = False
+        target_pid = input("pid = ")
+        canRefresh = True
+        try:
+            if (target_pid == "cancel"):
+                print("Opération annulée.")
+                return
+            target_pid = int(target_pid)
+            if (target_pid != pid):
+                break
+            else:
+                print("Vous ne pouvez pas accepter votre propre offre.")
+        except ValueError:
+            print("Incorrect ID")
+    with lock:
+        if sharedMemory.buf[target_pid-1] == 0:
+            print("Le joueur ciblé n'a pas fait d'offre, opération impossible.")
+            return
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
 
-    '''while myOffer[1] != sharedMemory.buf[target_pid-1]: 
+    target_nombre = 0
+    with lock:
+        target_nombre = sharedMemory.buf[target_pid-1]
+    while myOffer[1] != target_nombre:
         print("Offres non compatibles, veuillez reformuler une offre : ")
         if faireOffre() == False:
-            return'''
+            return
     print("offres compatibles :) ")
     send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
     print("Vous avez accepté l'offre du player "+str(target_pid))
@@ -199,13 +238,12 @@ def bell():
 
 
 
+def trackKeyboard():
+    global canRefresh
     
 
 def game():
-    global threads
-    refreshOffres = StoppableThread(target=refresh)
-    refreshOffres.start()
-    threads.append(refreshOffres)
+    global canRefresh
     while gameIsReady:
         print("Que voulez-vous faire ? ")
         action = input()
@@ -224,5 +262,14 @@ while not gameIsReady:
     pass
 print("Game is ready to start!")
 nonBlockingInput = StoppableThread(target=game)
+nonBlockingInput.setName("Game")
 nonBlockingInput.start()
 threads.append(nonBlockingInput)
+refreshOffres = StoppableThread(target=refresh)
+refreshOffres.setName("Refresh")
+refreshOffres.start()
+threads.append(refreshOffres)
+keyboardTracking = StoppableThread(target=trackKeyboard)
+keyboardTracking.setName("TrackKeyboard")
+keyboardTracking.start()
+threads.append(keyboardTracking)

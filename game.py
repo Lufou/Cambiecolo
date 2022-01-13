@@ -1,6 +1,6 @@
 import sysv_ipc
-from stoppable_thread import StoppableThread
 from multiprocessing import shared_memory
+import threading
 import sys
 import random
 import signal
@@ -26,7 +26,7 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
         cartes += typeTransport[k] + "," #ajout de la carte à la liste de cartes
         cardCounter[typeTransport[k]] += 1 #incrémente de 1 le nb de cartes du joueur
 
-    #cartes = cartes.removesuffix(",")
+    cartes = cartes[:len(cartes)-1]
 
     return cartes
         
@@ -71,8 +71,6 @@ def sendToPlayer(pid, msg): #envoie un msg à un player
     messageQueues[pid].send(msg, True, 1)
 
 def terminate():
-    print("Stopping mqReading thread")
-    mqThread.terminate() # Terminate the thread readMq which read the messageQueue as we're going to destroy the mq
     print("Broadcasting termination to all clients")
     broadcast("terminate") # Broadcast to all connected clients we are going to close the connection
     time.sleep(1) #attend 1 ms
@@ -108,7 +106,7 @@ def initGame(): #methode qui initialise le jeu
         messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
-        mqThread = StoppableThread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
+        mqThread = threading.Thread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
         mqThread.start()
         print("Thread created")
     signal.signal(signal.SIGINT, signalHandler)
