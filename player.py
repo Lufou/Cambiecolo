@@ -17,13 +17,18 @@ gameIsReady = False
 lock = ILock('lock-cambiecolo')
 myOffer = ()
 clientsMsgQueue = ""
-debug = False
+debug = True
 canRefresh = True
+incoming_offer = ""
 
 def readMq():
     global gameIsReady
     global serverMessageQueue
     global clientsMsgQueue
+    global incoming_offer
+    global lock
+    global pid
+    
     while True:
         try:
             # client <=> server message queue
@@ -39,13 +44,44 @@ def readMq():
             # clients <=> clients message queue
             message, t = clientsMsgQueue.receive(False, pid)
             value = message.decode()
+            value = value.split(" ")
+            if value[0] == "trade":
+                step = value[1]
+                from_client = value[2]
+                print(f"Receiving {value[0]} {step} {from_client}")
+                if step == 0:
+                    incoming_offer = value[3]
+                    sendToClient(from_client, f"trade 1 {pid} {myOffer[0]}")
+                elif step == 1:
+                    incoming_offer = value[3]
+                    sendToClient(from_client, "trade 2")
+                elif step == 2:
+                    with lock:
+                        sharedMemory.buf[pid-1] = 0
+                    counter = 0
+                    for i in range (0,5):
+                        if myCards[i] == myOffer[0]:
+                            myCards[i] = incoming_offer[0]
+                        counter += 1
+                        if counter == myOffer[1]: break
+                    myOffer = ()
+                    incoming_offer = ""
+
         except sysv_ipc.ExistentialError:
             print("MessageQueue has been destroyed, connection has been closed.")
             terminate(False)
         except sysv_ipc.BusyError:
             pass
 
-def send(msg):
+def sendToClient(target_pid, msg):
+    global clientsMsgQueue
+    global debug
+    if debug:
+        print(f"Sending to client {target_pid} : {msg}")
+    msg = msg.encode()
+    clientsMsgQueue.send(msg, True, target_pid)
+
+def sendToServer(msg):
     global serverMessageQueue
     global debug
     if debug:
@@ -68,7 +104,7 @@ def terminate(from_client=True):
         th.terminate()
     if from_client:
         print("Telling the server i want to leave...")
-        send("goodbye") # Tells the server i want to leave
+        sendToServer("goodbye") # Tells the server i want to leave
     time.sleep(1)
     sharedMemory.close()
     print("SharedMemory closed")
@@ -107,7 +143,7 @@ def initPlayer():
     if debug:
         print("Connected to MessageQueue")
     msg = "hello "+str(pid)
-    send(msg)
+    sendToServer(msg)
     if debug:
         print("Message '"+msg+"' sended")
         print("Waiting for my cards")
@@ -218,13 +254,12 @@ def accepterOffre():
         print("Offres non compatibles, veuillez reformuler une offre : ")
         if faireOffre() == False:
             return
-    print("offres compatibles :) ")
-    send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
     print("Vous avez accepté l'offre du player "+str(target_pid))
+    sendToClient(target_pid, f"trade 0 {pid} {myOffer[0]} {myOffer[1]}")
     
 def trackKeyboard():
     global canRefresh
-    
+
 
 def game():
     global canRefresh
