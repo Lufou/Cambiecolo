@@ -111,8 +111,11 @@ def terminate(from_client=True):
     print("Closing...")
     os._exit(0)
 
-def keyboardInterruptHandler(signal, frame):
-   terminate()
+def signalHandler(signal, frame):
+    if signal == signal.SIGINT:
+        terminate()
+    elif signal == signal.SIGQUIT:
+       pass
 
 def initPlayer():
     global pid
@@ -162,7 +165,8 @@ def initPlayer():
     mqThread.start()
     threads.append(mqThread)
     if debug: print("Thread started")
-    signal.signal(signal.SIGINT, keyboardInterruptHandler)
+    signal.signal(signal.SIGINT, signalHandler)
+    
 
 def refresh():
     global lock
@@ -257,6 +261,18 @@ def accepterOffre():
     print("Vous avez accepté l'offre du player "+str(target_pid))
     sendToClient(target_pid, f"trade 0 {pid} {myOffer[0]} {myOffer[1]}")
     
+
+def bell():
+    global myCards
+    for i in range (1,5):
+        if myCards[i] != myCards[i-1]:
+            print("Vous ne pouvez pas utiliser la cloche car vous n'avez pas 5 cartes identiques !")
+            return
+    print("Vous avez décidé d'actionner la cloche")
+    signal.signal(signal.SIGQUIT, signalHandler)
+
+
+
 def trackKeyboard():
     global canRefresh
 
@@ -270,6 +286,9 @@ def game():
             faireOffre()
         elif action == "accepterOffre":
             accepterOffre()
+        elif action == "bell":
+            bell()
+
 
 print("Starting player process")
 initPlayer()

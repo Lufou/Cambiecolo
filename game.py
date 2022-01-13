@@ -84,8 +84,9 @@ def terminate():
     print("Closing...")
     os._exit(0) 
 
-def keyboardInterruptHandler(signal, frame):
-   terminate()
+def signalHandler(signal, frame):
+    if signal == signal.SIGINT:
+        terminate()
    
 def initGame(): #methode qui initialise le jeu
     global playersNumber
@@ -108,7 +109,7 @@ def initGame(): #methode qui initialise le jeu
         mqThread = threading.Thread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
         mqThread.start()
         print("Thread created")
-    signal.signal(signal.SIGINT, keyboardInterruptHandler)
+    signal.signal(signal.SIGINT, signalHandler)
 
 print("Launching game process...")
 initGame()
