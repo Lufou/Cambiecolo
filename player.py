@@ -72,8 +72,11 @@ def terminate():
     print("Closing...")
     os._exit(0)
 
-def keyboardInterruptHandler(signal, frame):
-   terminate()
+def signalHandler(signal, frame):
+    if signal == signal.SIGINT:
+        terminate()
+    elif signal == signal.SIGQUIT:
+        # à completer, le serv doit envoyer un signal à tous les autres clients
 
 def initPlayer():
     global pid
@@ -120,7 +123,7 @@ def initPlayer():
     mqThread.start()
     threads.append(mqThread)
     print("Thread started")
-    signal.signal(signal.SIGINT, keyboardInterruptHandler)
+    signal.signal(signal.SIGINT, signalHandler)
 
 def refresh():
     global lock
@@ -170,13 +173,13 @@ def faireOffre():
 
 def accepterOffre():
     global myOffer #utilise la variable globale myOffer
-    global sharedMemory 
+    global sharedMemory
     target_pid = input("pid = ")
     if not myOffer: #teste si le tuple myOffer est vide ou non
         print (" Veuillez formuler une offre : ")
         faireOffre()
 
-    '''while myOffer[1] != sharedMemory.buf[target_pid-1]:
+    '''while myOffer[1] != sharedMemory.buf[target_pid-1]: 
         print("Offres non compatibles, veuillez reformuler une offre : ")
         if faireOffre() == False:
             return'''
@@ -184,6 +187,18 @@ def accepterOffre():
     send("trade "+str(myOffer[1])+" cards "+myOffer[0]+" with player "+str(target_pid))
     print("Vous avez accepté l'offre du player "+str(target_pid))
     
+
+def bell():
+    global myCards
+    for i in range (1,5):
+        if myCards[i] != myCards[i-1]:
+            print("Vous ne pouvez pas utiliser la cloche car vous n'avez pas 5 cartes identiques !")
+            return
+    print("Vous avez décidé d'actionner la cloche")
+    signal.signal(signal.SIGQUIT, signalHandler)
+
+
+
     
 
 def game():
@@ -198,6 +213,9 @@ def game():
             faireOffre()
         elif action == "accepterOffre":
             accepterOffre()
+        elif action == "bell":
+            bell()
+
 
 print("Starting player process")
 initPlayer()
