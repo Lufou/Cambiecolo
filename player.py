@@ -18,7 +18,7 @@ lock = ILock('lock-cambiecolo')
 myOffer = ()
 clientsMsgQueue = ""
 debug = False
-canRefresh = True
+canRefresh = True 
 incoming_offer = ""
 game_pid = ""
 
@@ -155,21 +155,21 @@ def signalHandler(signal, frame):
         print("Un joueur a sonné la fin du round.")
 
 def initPlayer():
-    global pid
+    global pid #utilisation des variables globales
     global serverMessageQueue
     global sharedMemory
     global threads
     global clientsMsgQueue
     global debug
     global game_pid
-    if len(sys.argv) != 2:
-        print("Syntax: python3 player.py <pid>")
-        os._exit(1)
-    try:
-        pid = int(sys.argv[1])
-    except ValueError:
-        print("Incorrect pid passed.")
-        os.Exit(2)
+    if len(sys.argv) != 2: #checke que le nombre d'arguments est correct
+        print("Syntax: python3 player.py <pid>") #affiche le type d'erreur
+        os._exit(1) #sort
+    try: #si le pid renseigné est correct
+        pid = int(sys.argv[1]) # initialisation de la valeur du pid
+    except ValueError: #si la saisie du pid n'est pas valide
+        print("Incorrect pid passed.") 
+        os.Exit(2) #on sort
    
     mq_key = 128+pid
     try:
@@ -183,21 +183,21 @@ def initPlayer():
         clientsMsgQueue = sysv_ipc.MessageQueue(150)
     if debug:
         print("Connected to MessageQueue")
-    msg = f"hello {pid} {os.getpid()}"
-    sendToServer(msg)
+    msg = f"hello {pid} {os.getpid()}" #msg hello
+    sendToServer(msg) #envoie le hello au serveur
     if debug:
-        print("Message '"+msg+"' sended")
+        print("Message '"+msg+"' sended") #debug, vérification dans le terminal que le msg a bien été envoyé
         print("Waiting for my cards")
     message, t = serverMessageQueue.receive(True, 1)
-    value = message.decode()
-    if debug: print("Received "+value)
-    value = value.split(" ")
+    value = message.decode() #décode le msg en bit reçu de la mq et le stocke dans value
+    if debug: print("Received "+value) #debug
+    value = value.split(" ")#splite le string value en tableau, la séparation d'une case se fait lorsqu'un espace est rencontré
     cards_string = value[2].split(",")
     for card in cards_string:
-        myCards.append(card)
-    print("Mes cartes : "+value[2])
-    game_pid = value[0]
-    shm_key = value[1]
+        myCards.append(card) #on ajoute la carte en fin de liste
+    print("Mes cartes : "+value[2]) #affichage du jeu de cartes
+    game_pid = value[0] #affecte à game_pid la valeur d'indice 0 du tableau value
+    shm_key = value[1] #affecte à shm_key la valeur d'indice 1 du tableau value
     sharedMemory = shared_memory.SharedMemory(shm_key)
     if debug: print("Connected to shared mem")
     mqThread = StoppableThread(target=readMq)
@@ -209,28 +209,28 @@ def initPlayer():
     signal.signal(signal.SIGTERM, signalHandler)
     
 
-def refresh():
+def refresh(): #methode permettant de rafraichir l'affichage des offres courantes (cet affichage se fait toutes les 5 secondes)
     global lock
     global myCards
     global canRefresh
     while True:
-        time.sleep(5)
+        time.sleep(5) #permet de faire une pause de 5 secondes dans l'exécution
         if canRefresh:
             with lock:
-                if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]:
+                if sharedMemory.buf[0] or sharedMemory.buf[1] or sharedMemory.buf[2] or sharedMemory.buf[3] or sharedMemory.buf[4]: #checke si un des joueurs a formulé une offre
                     print("\n\n\n\nOffres courantes :")
-                    for i in range(0,5):
-                        if not sharedMemory.buf[i]:
+                    for i in range(0,5): #parcours de la shm
+                        if not sharedMemory.buf[i]: #checke si la shm n'est pas vide
                             continue
-                        print(f"- Player {i+1} : {sharedMemory.buf[i]} cards")
+                        print(f"- Player {i+1} : {sharedMemory.buf[i]} cards") #affichage de l'offre du joueur d'indice i
                     string = "\n\n\nMon jeu : "
-                    for card in myCards:
+                    for card in myCards: #parcours du tableau myCards
                         string += card+","
-                    string = string[:len(string)-1]
-                    print(string)
+                    string = string[:len(string)-1] #ajoute en fin de liste le string suivant(=la carte suivante)
+                    print(string) #affiche le jeu du client dans lequel on se trouve
 
 def faireOffre():
-    global myOffer
+    global myOffer #utilisation des variables globales
     global lock
     global canRefresh
     print("Ecrivez <carte> <nombre> ou tapez cancel pour annuler")
@@ -240,22 +240,22 @@ def faireOffre():
         canRefresh = False
         choix = input()
         canRefresh = True
-        choix = choix.split(" ")
-        if len(choix) == 1 and choix[0] == "annuler":
+        choix = choix.split(" ") #splite le string hoix en un tableau de string, la séparation des cases se fait quand un espace survient dans le string choix
+        if len(choix) == 1 and choix[0] == "annuler": #si le joueur a rentré un input "annuler", le tableau choix n'a qu'une seule case
             return False
-        if len(choix) != 2:
+        if len(choix) != 2: #checke que le user a bien spécifié le bon nombre d'arguments
             print("Vous n'avez pas spécifié le bon nombre d'argument : <carte> <nombre>")
         else:
             try:
-                carte = choix[0]
-                nombre = int(choix[1])
-                if myCards.count(carte) < nombre:
+                carte = choix[0] # la case d'indice 0 du tableau correspond au type de carte
+                nombre = int(choix[1]) #conversion de la case d'indice 1 du tableau en int, le nombre de cartes échangées est bien sûr un int
+                if myCards.count(carte) < nombre: #checke que le nb de cartes que l'on veut l'on a n'est pas plus petit que le nombre de cartes que l'on veut échanger(pour le type donné)
                     print("Vous ne pouvez pas proposer des cartes que vous n'avez pas.")
-                elif nombre > 3:
+                elif nombre > 3: #checke que le player ne souhaite pas échanger plus de 3 cartes
                     print("Vous ne pouvez pas proposer plus de 3 cartes.")
                 else:
                     break
-            except ValueError:
+            except ValueError: #checke que la saisie du nombre de cartes est valide
                 print("Vous n'avez pas entré le bon nombre")
     myOffer = (carte, nombre)
     with lock:
@@ -269,23 +269,23 @@ def accepterOffre():
     global pid
     global canRefresh
     target_pid = ""
-    while True:
+    while True: 
         canRefresh = False
         target_pid = input("pid = ")
         canRefresh = True
         try:
-            if (target_pid == "cancel"):
+            if (target_pid == "cancel"): #permet d'annuler l'opération accepter offre si le joueur s'est trompé de commande
                 print("Opération annulée.")
                 return
-            target_pid = int(target_pid)
-            if (target_pid != pid):
+            target_pid = int(target_pid) #conversion du string en int
+            if (target_pid != pid): #vérifie que le pid dont on veut accepter l'offre est bien différent du notre 
                 break
             else:
                 print("Vous ne pouvez pas accepter votre propre offre.")
         except ValueError:
-            print("Incorrect ID")
+            print("Incorrect ID") # permet de ne pas planter le programme en cas de saisie invalide
     with lock:
-        if sharedMemory.buf[target_pid-1] == 0:
+        if sharedMemory.buf[target_pid-1] == 0: #accède à la valeur stockée dans la share memory et checke si une offre a été faite par le joueur ciblé
             print("Le joueur ciblé n'a pas fait d'offre, opération impossible.")
             return
     if not myOffer: #teste si le tuple myOffer est vide ou non
@@ -294,25 +294,25 @@ def accepterOffre():
 
     target_nombre = 0
     with lock:
-        target_nombre = sharedMemory.buf[target_pid-1]
-    while myOffer[1] != target_nombre:
+        target_nombre = sharedMemory.buf[target_pid-1] #attribue à target_nombre la valeur stockée dans la shm 
+    while myOffer[1] != target_nombre: #verifie que le nombre de cartes offert correspond au nb de cartes de l'offre acceptée
         print("Offres non compatibles, veuillez reformuler une offre : ")
-        if faireOffre() == False:
+        if faireOffre() == False: #verifie que faireOffre renvoie bien une offre valide
             return
     print("Vous avez accepté l'offre du player "+str(target_pid))
-    sendToClient(target_pid, f"trade 0 {pid} {myOffer[0]}")
+    sendToClient(target_pid, f"trade 0 {pid} {myOffer[0]}") #envoie au client pid le nombre de cartes échangées
     
 
 def bell():
-    global myCards
+    global myCards #utilisation de la variable globale myCards
     global game_pid
     for i in range (1,5):
-        if myCards[i] != myCards[i-1]:
+        if myCards[i] != myCards[i-1]: #checke si le joueur a bien 5 cartes identiques
             print("Vous ne pouvez pas utiliser la cloche car vous n'avez pas 5 cartes identiques !")
             return
     print("Vous avez décidé d'actionner la cloche")
-    os.kill(int(game_pid), signal.SIGQUIT)
-    sendToServer(f"score {myCards[0]}")
+    os.kill(int(game_pid), signal.SIGQUIT) #envoie au serveur un signal de type SIGQUIT
+    sendToServer(f"score {myCards[0]}") #envoie au serveur le type de carte du joueur ayant actionné la bell
 
 def trackKeyboard():
     global canRefresh
@@ -320,9 +320,9 @@ def trackKeyboard():
 
 def game():
     global canRefresh
-    while gameIsReady:
+    while gameIsReady: #verifie que tout va bien, que le jeu peut se poursuivre
         print("Que voulez-vous faire ? ")
-        action = input()
+        action = input() #associe à la variable action le string rentré par le player
         if action == "faireOffre":
             faireOffre()
         elif action == "accepterOffre":
