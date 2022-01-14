@@ -7,6 +7,8 @@ import signal
 import os
 import time
 
+from player import sendToClient
+
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5) #creation de la shared memory
 playersConnected = 0 #initialisation du nb de joueurs connectés
@@ -14,6 +16,7 @@ playersNumber = 0 #initialisation du nb de joueurs
 cardCounter = {} #initialisation du nb de cartes d'un joueur
 messageQueues = [] #initialisation de la messageQueue
 mqThread = ""
+processes_ids = []
 
 def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
     cartes = "" #liste des cartes sous forme de string
@@ -23,6 +26,8 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
             cardCounter[typeTransport[k]] = 0 #initialise à zero le nb de cartes de ce type tirées
         while cardCounter[typeTransport[k]] == 5: #boucle permettant de s'assurer qu'on distribue mmaximum 5 cartes d'un même type
             k = random.randint(0,playersNumber-1)
+            if typeTransport[k] not in cardCounter:
+                cardCounter[typeTransport[k]] = 0 #initialise à zero le nb de cartes de ce type tirées
         cartes += typeTransport[k] + "," #ajout de la carte à la liste de cartes
         cardCounter[typeTransport[k]] += 1 #incrémente de 1 le nb de cartes du joueur
 
@@ -32,6 +37,8 @@ def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
         
 def readMq(mq):
     global playersConnected
+    global processes_ids
+    global typeTransport
     while True:
         print("Waiting for msg")
         message, t = mq.receive(True, 2) #le true bloque le code à cette ligne tant qu'il n'y a pas de msg sur la mq, le 2 correspond au type de msg que l'on ecoute
@@ -41,7 +48,8 @@ def readMq(mq):
         value = value.split(" ") #crée un tableau à partir du string, la séparation se fait en fonction des espaces
         if value[0] == "hello": #on accède à l'indice 0 de value (que l'on a splité)
             print("Received hello from "+value[1])
-            return_message = f"{shm_a.name} {chooseRandomCards()}".encode() #renvoie la clé permettant d'accéder à la shared memory et son jeu au player
+            processes_ids[int(value[1])-1] = value[2]
+            return_message = f"{os.getpid()} {shm_a.name} {chooseRandomCards()}".encode() #renvoie la clé permettant d'accéder à la shared memory et son jeu au player
             mq.send(return_message, True, 1)#envoie le return msg via la mq
             playersConnected += 1 #incrémente de 1 le nb de joueurs connectés
 
@@ -49,20 +57,19 @@ def readMq(mq):
             print("One player decide to leave, terminating the game")
             terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
 
-def broadcast(msg, exclude=-1):
-    if exclude == -1:
-        print("Broadcasting to all clients : " + msg)
-        msg = msg.encode()
-        for mq in messageQueues:
-            mq.send(msg, True, 1)
-    else:
-        print(f"Broadcasting to all clients (excepted {exclude}) : {msg}")
-        exclude -= 1
-        msg = msg.encode()
-        for i in range(0,5):
-            if i == exclude:
-                continue
-            messageQueues[i].send(msg, True, 1)
+        if value[0] == "score":
+            points = 5*typeTransport.index(value[1])
+            print(f"{threading.current_thread().name} a fini la partie et a marqué {points} points.")
+            broadcast(f"gameend {threading.current_thread().name} {points}")
+            time.sleep(2)
+            terminate()
+
+def broadcast(msg):
+    print("Broadcasting to all clients : " + msg)
+    msg = msg.encode()
+    for mq in messageQueues:
+        mq.send(msg, True, 1)
+
 
 def sendToPlayer(pid, msg): #envoie un msg à un player
     print(f"Sending to Player {pid} : {msg}") #print le pid du joueur auquel on envoie le msg, et print le msg
@@ -85,12 +92,17 @@ def terminate():
     os._exit(0) 
 
 def signalHandler(signal, frame):
-    if signal == signal.SIGINT:
+    if signal == 2: #SIGINT
         terminate()
-   
+    elif signal == 3: #SIGQUIT
+       print("One player pressed the bell, requesting scores.")
+       for id in processes_ids:
+           os.kill(processes_ids, 3)
+
 def initGame(): #methode qui initialise le jeu
     global playersNumber
     global mqThread
+    global processes_ids
     if len(sys.argv) != 2:
         print("Incorrect amount of arguments")
         sys.exit(2)
@@ -107,9 +119,12 @@ def initGame(): #methode qui initialise le jeu
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
         mqThread = threading.Thread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
+        mqThread.setName(f"Joueur-{i}")
         mqThread.start()
         print("Thread created")
+    processes_ids = [0 for i in range(playersNumber)]
     signal.signal(signal.SIGINT, signalHandler)
+    signal.signal(signal.SIGQUIT, signalHandler)
 
 print("Launching game process...")
 initGame()
