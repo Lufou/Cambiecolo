@@ -7,8 +7,6 @@ import signal
 import os
 import time
 
-from player import sendToClient
-
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5) #creation de la shared memory
 playersConnected = 0 #initialisation du nb de joueurs connectés
@@ -40,29 +38,32 @@ def readMq(mq):
     global processes_ids
     global typeTransport
     while True:
-        print("Waiting for msg")
-        message, t = mq.receive(True, 2) #le true bloque le code à cette ligne tant qu'il n'y a pas de msg sur la mq, le 2 correspond au type de msg que l'on ecoute
-        #type 1 : serv vers player ; type 2 : player vers server
-        value = message.decode() #decode les bits de la mq
-        print("Received "+value) #print le msg décodé
-        value = value.split(" ") #crée un tableau à partir du string, la séparation se fait en fonction des espaces
-        if value[0] == "hello": #on accède à l'indice 0 de value (que l'on a splité)
-            print("Received hello from "+value[1])
-            processes_ids[int(value[1])-1] = value[2]
-            return_message = f"{os.getpid()} {shm_a.name} {chooseRandomCards()}".encode() #renvoie la clé permettant d'accéder à la shared memory et son jeu au player
-            mq.send(return_message, True, 1)#envoie le return msg via la mq
-            playersConnected += 1 #incrémente de 1 le nb de joueurs connectés
+        try:
+            print("Waiting for msg")
+            message, t = mq.receive(True, 2) #le true bloque le code à cette ligne tant qu'il n'y a pas de msg sur la mq, le 2 correspond au type de msg que l'on ecoute
+            #type 1 : serv vers player ; type 2 : player vers server
+            value = message.decode() #decode les bits de la mq
+            print("Received "+value) #print le msg décodé
+            value = value.split(" ") #crée un tableau à partir du string, la séparation se fait en fonction des espaces
+            if value[0] == "hello": #on accède à l'indice 0 de value (que l'on a splité)
+                print("Received hello from "+value[1])
+                processes_ids[int(value[1])-1] = value[2]
+                return_message = f"{os.getpid()} {shm_a.name} {chooseRandomCards()}".encode() #renvoie la clé permettant d'accéder à la shared memory et son jeu au player
+                mq.send(return_message, True, 1)#envoie le return msg via la mq
+                playersConnected += 1 #incrémente de 1 le nb de joueurs connectés
 
-        if value[0] == "goodbye":
-            print("One player decide to leave, terminating the game")
-            terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
+            if value[0] == "goodbye":
+                print("One player decide to leave, terminating the game")
+                terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
 
-        if value[0] == "score":
-            points = 5*typeTransport.index(value[1])
-            print(f"{threading.current_thread().name} a fini la partie et a marqué {points} points.")
-            broadcast(f"gameend {threading.current_thread().name} {points}")
-            time.sleep(2)
-            terminate()
+            if value[0] == "score":
+                points = 5*typeTransport.index(value[1])
+                print(f"{threading.current_thread().name} a fini la partie et a marqué {points} points.")
+                broadcast(f"gameend {threading.current_thread().name} {points}")
+                time.sleep(2)
+                terminate()
+        except sysv_ipc.ExistentialError:
+            pass
 
 def broadcast(msg):
     print("Broadcasting to all clients : " + msg)
@@ -97,7 +98,7 @@ def signalHandler(signal, frame):
     elif signal == 3: #SIGQUIT
        print("One player pressed the bell, requesting scores.")
        for id in processes_ids:
-           os.kill(processes_ids, 3)
+           os.kill(int(id), 3)
 
 def initGame(): #methode qui initialise le jeu
     global playersNumber
