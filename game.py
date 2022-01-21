@@ -10,19 +10,19 @@ import time
 typeTransport = ['pied','velo','voiture','train','avion']
 shm_a = shared_memory.SharedMemory(create=True, size=5) #creation de la shared memory
 playersConnected = 0 #initialisation du nb de joueurs connectés
-playersNumber = 0 #initialisation du nb de joueurs
-cardCounter = {} #initialisation du nb de cartes d'un joueur
-messageQueues = [] #initialisation de la messageQueue
+playersNumber = 0 #initialisation du nb de joueurs max
+cardCounter = {} #initialisation du nb de cartes distribuées
+messageQueues = [] #initialisation du tableau de messageQueue
 mqThread = ""
 processes_ids = []
 
 def chooseRandomCards(): #methode permettant de créer le jeu d'un joueur
     cartes = "" #liste des cartes sous forme de string
     for j in range (0,5):
-        k = random.randint(0,playersNumber-1)#choisit un nb random entre 0 et nbPlayers-1
+        k = random.randint(0,playersNumber-1) #choisit un nb random entre 0 et nbPlayers-1
         if typeTransport[k] not in cardCounter:
             cardCounter[typeTransport[k]] = 0 #initialise à zero le nb de cartes de ce type tirées
-        while cardCounter[typeTransport[k]] == 5: #boucle permettant de s'assurer qu'on distribue mmaximum 5 cartes d'un même type
+        while cardCounter[typeTransport[k]] == 5: #boucle permettant de s'assurer qu'on distribue maximum 5 cartes d'un même type
             k = random.randint(0,playersNumber-1)
             if typeTransport[k] not in cardCounter:
                 cardCounter[typeTransport[k]] = 0 #initialise à zero le nb de cartes de ce type tirées
@@ -48,8 +48,8 @@ def readMq(mq):
             if value[0] == "hello": #on accède à l'indice 0 de value (que l'on a splité)
                 print("Received hello from "+value[1])
                 processes_ids[int(value[1])-1] = value[2]
-                return_message = f"{os.getpid()} {shm_a.name} {chooseRandomCards()}".encode() #renvoie la clé permettant d'accéder à la shared memory et son jeu au player
-                mq.send(return_message, True, 1)#envoie le return msg via la mq
+                return_message = f"{os.getpid()} {shm_a.name} {chooseRandomCards()}".encode() #renvoie le process ID du process game, la clé permettant d'accéder à la shared memory et son jeu au player
+                mq.send(return_message, True, 1) #envoie le return msg via la mq
                 playersConnected += 1 #incrémente de 1 le nb de joueurs connectés
 
             if value[0] == "goodbye":
@@ -73,7 +73,7 @@ def broadcast(msg):
 
 
 def sendToPlayer(pid, msg): #envoie un msg à un player
-    print(f"Sending to Player {pid} : {msg}") #print le pid du joueur auquel on envoie le msg, et print le msg
+    print(f"Sending to Player {pid} : {msg}")
     pid -= 1 #la mq est indicée de 0 à 4, mais les pid des joueurs sont indicés de 1 à 5, on enlève 1 à la valeur du pid du joueur pour que les deux soient cohérents
     msg = msg.encode() #encode le msg à envoyer via la mq
     messageQueues[pid].send(msg, True, 1)
@@ -81,7 +81,7 @@ def sendToPlayer(pid, msg): #envoie un msg à un player
 def terminate():
     print("Broadcasting termination to all clients")
     broadcast("terminate") # Broadcast to all connected clients we are going to close the connection
-    time.sleep(1) #attend 1 ms
+    time.sleep(1)
     for mq in messageQueues: #parcours le tableau des mq
         mq.remove() #supprime toutes les mq
     print("Removed message queues")
@@ -104,18 +104,18 @@ def initGame(): #methode qui initialise le process game
     global playersNumber
     global mqThread
     global processes_ids
-    if len(sys.argv) != 2: #checke si le nb d'arguments rentrés est correct
+    if len(sys.argv) != 2: #check si le nb d'arguments rentrés est correct
         print("Incorrect amount of arguments")
-        sys.exit(2) #sort
+        sys.exit(2)
     number = sys.argv[1]
     try:
         number = int(number) #conversion en int de number
     except ValueError: #si number ne peut pas être converti en int
         print("Incorrect number of players.")
-        sys.exit(2) #sort
+        sys.exit(2)
     playersNumber = number
     for i in range(1,playersNumber+1):
-        key = 128+i #associe à chaque player une clé 
+        key = 128+i
         messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
