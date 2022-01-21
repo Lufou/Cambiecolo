@@ -100,22 +100,22 @@ def signalHandler(signal, frame):
        for id in processes_ids:
            os.kill(int(id), 3)
 
-def initGame(): #methode qui initialise le jeu
+def initGame(): #methode qui initialise le process game
     global playersNumber
     global mqThread
     global processes_ids
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 2: #checke si le nb d'arguments rentrés est correct
         print("Incorrect amount of arguments")
-        sys.exit(2)
+        sys.exit(2) #sort
     number = sys.argv[1]
     try:
-        number = int(number)
-    except ValueError:
+        number = int(number) #conversion en int de number
+    except ValueError: #si number ne peut pas être converti en int
         print("Incorrect number of players.")
-        sys.exit(2)
+        sys.exit(2) #sort
     playersNumber = number
     for i in range(1,playersNumber+1):
-        key = 128+i
+        key = 128+i #associe à chaque player une clé 
         messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
