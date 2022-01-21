@@ -57,7 +57,7 @@ def readMq(mq):
                 terminate() #appel de la methode terminate, qui supprime toutes les mq, la shared memory... et termine le jeu
 
             if value[0] == "score":
-                points = 5*typeTransport.index(value[1])
+                points = 5*(typeTransport.index(value[1])+1)
                 print(f"{threading.current_thread().name} a fini la partie et a marqué {points} points.")
                 broadcast(f"gameend {threading.current_thread().name} {points}")
                 time.sleep(2)
@@ -119,7 +119,7 @@ def initGame(): #methode qui initialise le jeu
         messageQueue = sysv_ipc.MessageQueue(key, sysv_ipc.IPC_CREAT)
         messageQueues.append(messageQueue)
         print(f"Message Queue {key} created")
-        mqThread = threading.Thread(target=readMq, args = (messageQueue,)) #mqThread est un thread de type stoppable thread
+        mqThread = threading.Thread(target=readMq, args = (messageQueue,))
         mqThread.setName(f"Joueur-{i}")
         mqThread.start()
         print("Thread created")

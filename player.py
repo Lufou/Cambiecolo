@@ -206,7 +206,6 @@ def initPlayer():
     if debug: print("Thread started")
     signal.signal(signal.SIGINT, signalHandler)
     signal.signal(signal.SIGQUIT, signalHandler)
-    signal.signal(signal.SIGTERM, signalHandler)
     
 
 def refresh():
@@ -241,7 +240,7 @@ def faireOffre():
         choix = input()
         canRefresh = True
         choix = choix.split(" ")
-        if len(choix) == 1 and choix[0] == "annuler":
+        if len(choix) == 1 and choix[0] == "cancel":
             return False
         if len(choix) != 2:
             print("Vous n'avez pas spécifié le bon nombre d'argument : <carte> <nombre>")
